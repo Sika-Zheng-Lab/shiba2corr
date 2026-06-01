@@ -1,0 +1,13 @@
+test/logs/
+test/slurm-*.out
+__pycache__/
+.DS_Store
+*.egg-info/
+build/
+.pypirc
+dist/
+recipes/
+.pytest_cache/
+.coverage
+example/output/
+*.bash

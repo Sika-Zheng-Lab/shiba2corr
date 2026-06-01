@@ -1,0 +1,15 @@
+cff-version: 1.2.0
+message: "If you use shiba2corr in your research, please cite it as below."
+title: "shiba2corr"
+abstract: "Weighted dPSI correlation analysis for alternative splicing events quantified by Shiba."
+type: software
+authors:
+  - family-names: "Kubota"
+    given-names: "Naoto"
+    orcid: "https://orcid.org/0000-0003-0612-2300"
+  - family-names: "Zheng"
+    given-names: "Sika"
+    orcid: "https://orcid.org/0000-0002-0573-4981"
+repository-code: "https://github.com/Sika-Zheng-Lab/shiba2corr"
+license: MIT
+version: v0.1.0
