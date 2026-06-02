@@ -4,6 +4,7 @@
 [![GitHub Release](https://img.shields.io/github/v/release/Sika-Zheng-Lab/shiba2corr?style=flat)](https://github.com/Sika-Zheng-Lab/shiba2corr/releases)
 [![GitHub Release Date](https://img.shields.io/github/release-date/Sika-Zheng-Lab/shiba2corr)](https://github.com/Sika-Zheng-Lab/shiba2corr/releases)
 [![Tests](https://github.com/Sika-Zheng-Lab/shiba2corr/actions/workflows/test.yml/badge.svg)](https://github.com/Sika-Zheng-Lab/shiba2corr/actions/workflows/test.yml)
+[![codecov](https://codecov.io/gh/Sika-Zheng-Lab/shiba2corr/branch/main/graph/badge.svg)](https://codecov.io/gh/Sika-Zheng-Lab/shiba2corr)
 [![Create Release](https://github.com/Sika-Zheng-Lab/shiba2corr/actions/workflows/release.yaml/badge.svg)](https://github.com/Sika-Zheng-Lab/shiba2corr/actions/workflows/release.yaml)
 [![Publish to PyPI](https://github.com/Sika-Zheng-Lab/shiba2corr/actions/workflows/publish.yaml/badge.svg)](https://github.com/Sika-Zheng-Lab/shiba2corr/actions/workflows/publish.yaml)
 [![Python](https://img.shields.io/pypi/pyversions/shiba2corr.svg?label=Python&color=blue)](https://pypi.org/project/shiba2corr/)
