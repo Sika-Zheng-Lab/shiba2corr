@@ -1,6 +1,6 @@
 """shiba2corr: weighted dPSI correlation analysis for Shiba splicing results."""
 
-__version__ = "v0.1.0"
+__version__ = "v1.0.0"
 
 from .load import (
 	EVENT_TYPES,

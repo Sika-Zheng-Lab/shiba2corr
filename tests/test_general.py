@@ -17,9 +17,9 @@ def test_format_command_line(monkeypatch):
 def test_create_simple_report_shape():
 	class Args:
 		pass
-	report = general.create_simple_report(Args(), 1_700_000_000.0, 1_700_000_005.5, "v0.1.0")
+	report = general.create_simple_report(Args(), 1_700_000_000.0, 1_700_000_005.5, "v1.0.0")
 	assert report["tool"]["name"] == "shiba2corr"
-	assert report["tool"]["version"] == "v0.1.0"
+	assert report["tool"]["version"] == "v1.0.0"
 	assert report["run"]["duration_seconds"] == 5.5
 	assert "T" in report["run"]["start_time"]
 	assert "T" in report["run"]["end_time"]
