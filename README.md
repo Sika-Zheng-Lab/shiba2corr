@@ -42,12 +42,33 @@ and significance assessed via a t-test on the **Kish effective sample size**
 
 $$n_{\text{eff}} = \frac{(\sum w_i)^2}{\sum w_i^2}.$$
 
-| Weight scheme | $w_i$ | Use when |
-|---|---|---|
-| `inverse_variance` *(default)* | $1 / (\mathrm{Var}(\mathrm{PSI}_{\text{tgt}}) + \mathrm{Var}(\mathrm{PSI}_{\text{ref}}) + \varepsilon)$ | Beta-derived PSI variances are reliable |
-| `geom_mean` | $\sqrt{\mathrm{cov}_{\text{tgt}} \cdot \mathrm{cov}_{\text{ref}}}$ | Coverage is the only confidence proxy |
-| `coverage_mean` | $\tfrac{1}{2}(\mathrm{cov}_{\text{tgt}} + \mathrm{cov}_{\text{ref}})$ | One condition may have low coverage |
-| `uniform` | $1$ | Sanity-check vs. unweighted Pearson |
+<table>
+  <thead>
+    <tr><th>Weight scheme</th><th>$w_i$</th><th>Use when</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code>inverse_variance</code> <em>(default)</em></td>
+      <td>$1 / (\mathrm{Var}(\mathrm{PSI}_{\mathrm{tgt}}) + \mathrm{Var}(\mathrm{PSI}_{\mathrm{ref}}) + \varepsilon)$</td>
+      <td>Beta-derived PSI variances are reliable</td>
+    </tr>
+    <tr>
+      <td><code>geom_mean</code></td>
+      <td>$\sqrt{\mathrm{cov}_{\mathrm{tgt}} \cdot \mathrm{cov}_{\mathrm{ref}}}$</td>
+      <td>Coverage is the only confidence proxy</td>
+    </tr>
+    <tr>
+      <td><code>coverage_mean</code></td>
+      <td>$\tfrac{1}{2}(\mathrm{cov}_{\mathrm{tgt}} + \mathrm{cov}_{\mathrm{ref}})$</td>
+      <td>One condition may have low coverage</td>
+    </tr>
+    <tr>
+      <td><code>uniform</code></td>
+      <td>$1$</td>
+      <td>Sanity-check vs. unweighted Pearson</td>
+    </tr>
+  </tbody>
+</table>
 
 In addition to the correlation table, `shiba2corr` produces:
 
