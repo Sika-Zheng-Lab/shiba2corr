@@ -31,7 +31,7 @@ estimated in each condition.
 
 **Weighted correlation:**
 
-$$r_w = \frac{\mathrm{Cov}_w(x, y)}{\sqrt{\mathrm{Var}_w(x)\, \mathrm{Var}_w(y)}}$$
+$$r_w = \frac{\mathrm{Cov}_w(x, y)}{\sqrt{\mathrm{Var}_w(x)\ \mathrm{Var}_w(y)}}$$
 
 with unbiased weighted estimators
 
