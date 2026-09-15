@@ -4,8 +4,8 @@
 [![GitHub Release](https://img.shields.io/github/v/release/Sika-Zheng-Lab/shiba2corr?style=flat)](https://github.com/Sika-Zheng-Lab/shiba2corr/releases)
 [![GitHub Release Date](https://img.shields.io/github/release-date/Sika-Zheng-Lab/shiba2corr)](https://github.com/Sika-Zheng-Lab/shiba2corr/releases)
 [![Tests](https://github.com/Sika-Zheng-Lab/shiba2corr/actions/workflows/test.yml/badge.svg)](https://github.com/Sika-Zheng-Lab/shiba2corr/actions/workflows/test.yml)
-[![Create Release](https://github.com/Sika-Zheng-Lab/shiba2corr/actions/workflows/release.yaml/badge.svg)](https://github.com/Sika-Zheng-Lab/shiba2corr/actions/workflows/release.yaml)
-[![Publish to PyPI](https://github.com/Sika-Zheng-Lab/shiba2corr/actions/workflows/publish.yaml/badge.svg)](https://github.com/Sika-Zheng-Lab/shiba2corr/actions/workflows/publish.yaml)
+[![codecov](https://codecov.io/gh/Sika-Zheng-Lab/shiba2corr/branch/main/graph/badge.svg)](https://codecov.io/gh/Sika-Zheng-Lab/shiba2corr)
+[![Release](https://github.com/Sika-Zheng-Lab/shiba2corr/actions/workflows/release.yaml/badge.svg)](https://github.com/Sika-Zheng-Lab/shiba2corr/actions/workflows/release.yaml)
 [![Python](https://img.shields.io/pypi/pyversions/shiba2corr.svg?label=Python&color=blue)](https://pypi.org/project/shiba2corr/)
 [![PyPI](https://img.shields.io/pypi/v/shiba2corr.svg?label=PyPI&color=orange)](https://pypi.org/project/shiba2corr/)
 [![PyPI - Downloads](https://img.shields.io/pypi/dm/shiba2corr.svg?label=PyPI%20-%20Downloads&color=orange)](https://pypi.org/project/shiba2corr/)
@@ -30,7 +30,7 @@ estimated in each condition.
 
 **Weighted correlation:**
 
-$$r_w = \frac{\mathrm{Cov}_w(x, y)}{\sqrt{\mathrm{Var}_w(x)\, \mathrm{Var}_w(y)}}$$
+$$r_w = \frac{\mathrm{Cov}_w(x, y)}{\sqrt{\mathrm{Var}_w(x)\ \mathrm{Var}_w(y)}}$$
 
 with unbiased weighted estimators
 
@@ -41,12 +41,33 @@ and significance assessed via a t-test on the **Kish effective sample size**
 
 $$n_{\text{eff}} = \frac{(\sum w_i)^2}{\sum w_i^2}.$$
 
-| Weight scheme | $w_i$ | Use when |
-|---|---|---|
-| `inverse_variance` *(default)* | $1 / (\mathrm{Var}(\mathrm{PSI}_{\text{tgt}}) + \mathrm{Var}(\mathrm{PSI}_{\text{ref}}) + \varepsilon)$ | Beta-derived PSI variances are reliable |
-| `geom_mean` | $\sqrt{\mathrm{cov}_{\text{tgt}} \cdot \mathrm{cov}_{\text{ref}}}$ | Coverage is the only confidence proxy |
-| `coverage_mean` | $\tfrac{1}{2}(\mathrm{cov}_{\text{tgt}} + \mathrm{cov}_{\text{ref}})$ | One condition may have low coverage |
-| `uniform` | $1$ | Sanity-check vs. unweighted Pearson |
+<table>
+  <thead>
+    <tr><th>Weight scheme</th><th>$w_i$</th><th>Use when</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code>inverse_variance</code> <em>(default)</em></td>
+      <td>$1 / (\mathrm{Var}(\mathrm{PSI}_{\mathrm{tgt}}) + \mathrm{Var}(\mathrm{PSI}_{\mathrm{ref}}) + \varepsilon)$</td>
+      <td>Beta-derived PSI variances are reliable</td>
+    </tr>
+    <tr>
+      <td><code>geom_mean</code></td>
+      <td>$\sqrt{\mathrm{cov}_{\mathrm{tgt}} \cdot \mathrm{cov}_{\mathrm{ref}}}$</td>
+      <td>Coverage is the only confidence proxy</td>
+    </tr>
+    <tr>
+      <td><code>coverage_mean</code></td>
+      <td>$\tfrac{1}{2}(\mathrm{cov}_{\mathrm{tgt}} + \mathrm{cov}_{\mathrm{ref}})$</td>
+      <td>One condition may have low coverage</td>
+    </tr>
+    <tr>
+      <td><code>uniform</code></td>
+      <td>$1$</td>
+      <td>Sanity-check vs. unweighted Pearson</td>
+    </tr>
+  </tbody>
+</table>
 
 In addition to the correlation table, `shiba2corr` produces:
 
