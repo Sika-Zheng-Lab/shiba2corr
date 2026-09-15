@@ -1,67 +1,250 @@
-name: Create Release
+name: Release
 
 on:
   pull_request:
     types: [closed]
     branches:
       - main
+  push:
+    tags:
+      - "v*.*.*"
 
-permissions: write-all
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
 
 jobs:
-  create-release-and-build:
-    if: github.event.pull_request.merged == true
+  prepare:
+    name: Resolve release
+    if: >-
+      github.event_name == 'push' ||
+      (github.event.pull_request.merged == true &&
+      github.event.pull_request.head.ref == 'develop')
     runs-on: ubuntu-latest
-
+    outputs:
+      tag: ${{ steps.release.outputs.tag }}
+      commit: ${{ steps.release.outputs.commit }}
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v2
-
-      - name: Get the latest tag
-        id: get_tag
-        run: echo ::set-output name=tag::$(git describe --tags `git rev-list --tags --max-count=1`)
-
-      - name: Bump version and push tag
-        id: tag_version
-        run: |
-          NEW_TAG=$(cat VERSION)
-          echo "New tag is $NEW_TAG"
-          echo "::set-output name=NEW_TAG::$NEW_TAG"
-          git config user.name "github-actions"
-          git config user.email "github-actions@github.com"
-          git tag -a $NEW_TAG -m "Release $NEW_TAG"
-          git remote set-url origin https://${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}
-          git push origin $NEW_TAG
-        env:
-          VERSION: ${{ steps.get_tag.outputs.tag }}
-
-      - name: Debug NEW_TAG
-        run: echo "The new tag is $NEW_TAG"
-
-      - name: Create GitHub release
-        id: create_release
-        uses: actions/create-release@v1.1.0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/checkout@v4
         with:
-          tag_name: ${{ steps.tag_version.outputs.NEW_TAG }}
-          release_name: ${{ steps.tag_version.outputs.NEW_TAG }}
-          body: ${{ github.event.pull_request.body }}
-          draft: false
-          prerelease: false
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.merge_commit_sha || github.ref }}
+          fetch-depth: 0
+      - name: Resolve release
+        id: release
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PUSHED_TAG: ${{ github.ref_name }}
+        run: |
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            RELEASE_TAG=$(tr -d '[:space:]' < VERSION)
+            if [[ ! "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              echo "Invalid VERSION: $RELEASE_TAG" >&2
+              exit 1
+            fi
+            if git rev-parse --verify --quiet "refs/tags/$RELEASE_TAG"; then
+              echo "Tag already exists: $RELEASE_TAG" >&2
+              exit 1
+            fi
+          else
+            RELEASE_TAG="$PUSHED_TAG"
+          fi
+          echo "tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
+          echo "commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v1
+  validate:
+    name: Validate release metadata
+    needs: prepare
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.commit }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Check version consistency
+        env:
+          RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
+        run: |
+          python - <<'PY'
+          import os
+          import pathlib
+          import re
+          import tomllib
 
-      - name: Login to DockerHub
-        uses: docker/login-action@v2
+          tag = os.environ["RELEASE_TAG"]
+          if not re.fullmatch(r"v\d+\.\d+\.\d+", tag):
+              raise SystemExit(f"Invalid release tag: {tag}")
+
+          expected = tag.removeprefix("v")
+          root = pathlib.Path(".")
+          pyproject = tomllib.loads((root / "pyproject.toml").read_text())
+          init = (root / "src/shiba2corr/__init__.py").read_text()
+          citation = (root / "CITATION.cff").read_text()
+          checks = {
+              "VERSION": (root / "VERSION").read_text().strip() == tag,
+              "pyproject.toml": pyproject["project"]["version"] == expected,
+              "src/shiba2corr/__init__.py": f'__version__ = "{tag}"' in init,
+              "CITATION.cff": f"version: {tag}" in citation,
+          }
+          failures = [name for name, valid in checks.items() if not valid]
+          if failures:
+              raise SystemExit("Version mismatch in: " + ", ".join(failures))
+          PY
+
+  test:
+    name: Test on Python ${{ matrix.python-version }}
+    needs: [prepare, validate]
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.9", "3.10", "3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.commit }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install package and test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install ".[dev]"
+      - name: Run tests
+        run: pytest --cov=shiba2corr --cov-report=term-missing --cov-fail-under=90 -q
+
+  build:
+    name: Build Python distributions
+    needs: [prepare, test]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.commit }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Build and validate distributions
+        run: |
+          python -m pip install --upgrade build twine
+          python -m build
+          python -m twine check --strict dist/*
+      - uses: actions/upload-artifact@v4
+        with:
+          name: python-package-distributions
+          path: dist/
+          if-no-files-found: error
+          retention-days: 14
+
+  create-tag:
+    name: Create release tag
+    needs: [prepare, build]
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.commit }}
+          fetch-depth: 0
+      - name: Create and push annotated tag
+        env:
+          RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
+        run: |
+          if git rev-parse --verify --quiet "refs/tags/$RELEASE_TAG"; then
+            echo "Tag already exists: $RELEASE_TAG" >&2
+            exit 1
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$RELEASE_TAG" -m "shiba2corr $RELEASE_TAG"
+          git push origin "$RELEASE_TAG"
+
+  github-release:
+    name: Create GitHub Release
+    needs: [prepare, build, create-tag]
+    if: >-
+      always() &&
+      needs.prepare.result == 'success' &&
+      needs.build.result == 'success' &&
+      (needs.create-tag.result == 'success' || needs.create-tag.result == 'skipped')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: python-package-distributions
+          path: dist/
+      - name: Create release and attach distributions
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            gh release create "$RELEASE_TAG" dist/* \
+              --repo "$GITHUB_REPOSITORY" \
+              --verify-tag \
+              --title "$RELEASE_TAG" \
+              --notes "$PR_BODY"
+          else
+            gh release create "$RELEASE_TAG" dist/* \
+              --repo "$GITHUB_REPOSITORY" \
+              --verify-tag \
+              --title "$RELEASE_TAG" \
+              --generate-notes
+          fi
+
+  pypi:
+    name: Publish to PyPI
+    needs: [prepare, github-release]
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/shiba2corr
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: python-package-distributions
+          path: dist/
+      - name: Publish distributions
+        uses: pypa/gh-action-pypi-publish@release/v1
+
+  docker:
+    name: Publish Docker image
+    needs: [prepare, pypi]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.commit }}
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_HUB_USERNAME }}
           password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
-
-      - name: Build and push Docker image with tag
-        run: |
-          TAG=${{ steps.tag_version.outputs.NEW_TAG }}
-          docker build -t naotokubota/shiba2corr:$TAG -t naotokubota/shiba2corr:latest -f docker/Dockerfile .
-          docker push naotokubota/shiba2corr:$TAG
-          docker push naotokubota/shiba2corr:latest
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            naotokubota/shiba2corr:${{ needs.prepare.outputs.tag }}
+            naotokubota/shiba2corr:latest
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.version=${{ needs.prepare.outputs.tag }}

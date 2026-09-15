@@ -23,14 +23,26 @@ tests automatically.
 
 ## Releasing
 
-1. Bump `VERSION` on `develop` (e.g. `v0.2.0`). The `update-version.yaml`
+1. Bump `VERSION` on `develop` (e.g. `v1.1.0`). The `update-version.yaml`
    workflow propagates the new version into `README.md`, `pyproject.toml`,
    `src/shiba2corr/__init__.py`, `docker/Dockerfile`, and the issue
    templates, and commits the result back to `develop`.
-2. Open a PR from `develop` into `main` with a release-note body.
-3. Merge the PR. The `release.yaml` workflow tags the release, creates a
-   GitHub Release, and builds & pushes the Docker image. The `publish.yaml`
-   workflow uploads the wheel to PyPI.
+2. Update the release date and notes in `CHANGELOG.md`, then open a PR from
+   `develop` into `main`.
+3. Merge the `develop` to `main` PR. The `release.yaml` workflow reads
+   `VERSION`, creates the corresponding annotated tag on the merge commit,
+   validates all version fields, runs the test matrix, builds and attaches the
+   Python distributions to a GitHub Release using the PR body as its release
+   notes, publishes them to PyPI using Trusted Publishing, and then publishes
+   the versioned and `latest` Docker images. A PR from any branch other than
+   `develop` does not create a release.
+
+Pushing an existing release tag manually also starts the workflow. This is
+intended only for recovery when the automatic workflow could not run.
+
+The GitHub `pypi` environment must be registered as a PyPI Trusted Publisher.
+Docker publishing requires the `DOCKER_HUB_USERNAME` and
+`DOCKER_HUB_ACCESS_TOKEN` repository secrets.
 
 ## Code style
 

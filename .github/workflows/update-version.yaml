@@ -5,69 +5,53 @@ on:
     branches:
       - develop
     paths:
-      - 'VERSION'
+      - VERSION
 
-permissions: write-all
+permissions:
+  contents: write
 
 jobs:
-  update-readme-version:
+  update-version:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v2
+      - uses: actions/checkout@v4
+        with:
+          ref: develop
 
-      - name: Check for merge commit
-        id: check_merge
+      - name: Read and validate version
+        id: version
         run: |
-          if [ "$(git rev-list --count HEAD^@)" -gt 1 ]; then
-            echo "This is a merge commit. Skipping workflow."
+          NEW_VERSION=$(tr -d '[:space:]' < VERSION)
+          if [[ ! "$NEW_VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Invalid VERSION: $NEW_VERSION" >&2
+            exit 1
+          fi
+          echo "tag=$NEW_VERSION" >> "$GITHUB_OUTPUT"
+          echo "python=${NEW_VERSION#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Synchronize version fields
+        env:
+          TAG_VERSION: ${{ steps.version.outputs.tag }}
+          PYTHON_VERSION: ${{ steps.version.outputs.python }}
+        run: |
+          sed -i -E "s/v[0-9]+\.[0-9]+\.[0-9]+/$TAG_VERSION/g" README.md
+          sed -i -E "s/__version__ = \"v[0-9]+\.[0-9]+\.[0-9]+\"/__version__ = \"$TAG_VERSION\"/" src/shiba2corr/__init__.py
+          sed -i -E "s/version=\"v[0-9]+\.[0-9]+\.[0-9]+\"/version=\"$TAG_VERSION\"/" docker/Dockerfile
+          sed -i -E "s/v[0-9]+\.[0-9]+\.[0-9]+/$TAG_VERSION/g" .github/ISSUE_TEMPLATE/*.yaml
+          sed -i -E "s/^version = \"[0-9]+\.[0-9]+\.[0-9]+\"/version = \"$PYTHON_VERSION\"/" pyproject.toml
+          sed -i -E "s/^version: v[0-9]+\.[0-9]+\.[0-9]+/version: $TAG_VERSION/" CITATION.cff
+
+      - name: Commit synchronized versions
+        env:
+          TAG_VERSION: ${{ steps.version.outputs.tag }}
+        run: |
+          if git diff --quiet; then
+            echo "All version fields are already synchronized."
             exit 0
           fi
-
-      - name: Read version from VERSION file
-        id: read_version
-        run: |
-          NEW_VERSION=$(cat VERSION)
-          echo "New version is $NEW_VERSION"
-          echo "::set-output name=NEW_VERSION::$NEW_VERSION"
-
-      - name: Get the branch name
-        id: get_branch
-        run: |
-          BRANCH_NAME=$(echo $GITHUB_REF | sed 's/refs\/heads\///')
-          echo "::set-output name=BRANCH_NAME::$BRANCH_NAME"
-
-      - name: Update README.md with new version
-        run: |
-          NEW_VERSION=${{ steps.read_version.outputs.NEW_VERSION }}
-          sed -i "s/v[0-9]*\.[0-9]*\.[0-9]*/${NEW_VERSION}/g" README.md
-
-      - name: Update __init__.py with new version
-        run: |
-          NEW_VERSION=${{ steps.read_version.outputs.NEW_VERSION }}
-          sed -i "s/__version__ = \"v[0-9]*\.[0-9]*\.[0-9]*\"/__version__ = \"${NEW_VERSION}\"/" src/shiba2corr/__init__.py
-
-      - name: Update Dockerfile with new version
-        run: |
-          NEW_VERSION=${{ steps.read_version.outputs.NEW_VERSION }}
-          sed -i "s/v[0-9]*\.[0-9]*\.[0-9]*/${NEW_VERSION}/" docker/Dockerfile
-
-      - name: Update issue templates with new version
-        run: |
-          NEW_VERSION=${{ steps.read_version.outputs.NEW_VERSION }}
-          sed -i "s/v[0-9]*\.[0-9]*\.[0-9]*/${NEW_VERSION}/" .github/ISSUE_TEMPLATE/*.yaml
-
-      - name: Update pyproject.toml with new version
-        run: |
-          NEW_VERSION=${{ steps.read_version.outputs.NEW_VERSION }}
-          NEW_VERSION=$(echo $NEW_VERSION | sed 's/v//')
-          sed -i "s/version = \"[0-9]*\.[0-9]*\.[0-9]*\"/version = \"${NEW_VERSION}\"/" pyproject.toml
-
-      - name: Commit changes
-        run: |
-          git config user.name "github-actions"
-          git config user.email "github-actions@github.com"
-          git add README.md src/shiba2corr/__init__.py docker/Dockerfile .github/ISSUE_TEMPLATE/*.yaml pyproject.toml
-          git commit -m "actions: Ready for ${{ steps.read_version.outputs.NEW_VERSION }}"
-          git push origin HEAD:${{ steps.get_branch.outputs.BRANCH_NAME }}
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add README.md src/shiba2corr/__init__.py docker/Dockerfile \
+            .github/ISSUE_TEMPLATE/*.yaml pyproject.toml CITATION.cff
+          git commit -m "actions: Ready for $TAG_VERSION"
+          git push origin HEAD:develop
