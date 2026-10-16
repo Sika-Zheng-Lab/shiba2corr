@@ -11,3 +11,4 @@ recipes/
 .coverage
 example/output/
 *.bash
+/example/sensitivity-preview/

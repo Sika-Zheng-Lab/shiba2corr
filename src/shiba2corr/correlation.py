@@ -52,10 +52,10 @@ def compute_weighted_correlation_dpsi_union(target_shiba_dir, reference_shiba_di
 
 		xs, ys, ws = [], [], []
 		scatter_rows = []
-		for pos_id in union_pos_ids:
+		for pos_id in sorted(union_pos_ids):
 			t_dpsi = target_data[et]['dpsi'].get(pos_id, np.nan)
 			r_dpsi = reference_data[et]['dpsi'].get(pos_id, np.nan)
-			if pd.isna(t_dpsi) or pd.isna(r_dpsi):
+			if not np.isfinite(t_dpsi) or not np.isfinite(r_dpsi):
 				continue
 
 			if weight_scheme == 'inverse_variance':
@@ -100,44 +100,44 @@ def compute_weighted_correlation_dpsi_union(target_shiba_dir, reference_shiba_di
 			scatter_data_dict[et] = pd.DataFrame(
 				columns=['pos_id', 'target_dpsi', 'reference_dpsi', 'weight', 'weight_normalized'])
 
-		if n_used < 2:
-			results[et] = {'n_union': n_union, 'n_used': n_used, 'weight_scheme': weight_scheme,
-						   'r': np.nan, 'p_value_approx': np.nan, 'neff': np.nan}
-			continue
-
-		x = np.asarray(xs)
-		y = np.asarray(ys)
-		w = np.asarray(ws)
-		try:
-			w_sum = w.sum()
-			w2_sum = (w ** 2).sum()
-			denom = max(1e-12, w_sum - (w2_sum / w_sum))
-			mx = (w * x).sum() / w_sum
-			my = (w * y).sum() / w_sum
-			cov = (w * (x - mx) * (y - my)).sum() / denom
-			vx = (w * (x - mx) ** 2).sum() / denom
-			vy = (w * (y - my) ** 2).sum() / denom
-			r = cov / np.sqrt(vx * vy) if vx > 0 and vy > 0 else np.nan
-			neff = (w_sum ** 2) / w2_sum if w2_sum > 0 else np.nan
-			if not np.isfinite(neff) or neff < max(3, min_events):
-				p_value = np.nan
-			elif np.isfinite(r):
-				denom_t = max(1e-12, 1.0 - r ** 2)
-				tval = r * np.sqrt((neff - 2.0) / denom_t)
-				p_value = 2.0 * stats.t.sf(np.abs(tval), df=max(1.0, neff - 2.0))
-			else:
-				p_value = np.nan
-		except (ZeroDivisionError, ValueError) as e:
-			logger.warning(f"Error calculating correlation for {et}: {e}")
-			r, p_value, neff = np.nan, np.nan, np.nan
-
 		results[et] = {
 			'n_union': n_union, 'n_used': n_used, 'weight_scheme': weight_scheme,
-			'r': r, 'p_value_approx': p_value, 'neff': neff,
+			**calculate_correlations(xs, ys, ws, min_events=min_events),
 		}
 
 	logger.info(f"Completed weighted dPSI correlation analysis using {weight_scheme} weighting")
 	return results, scatter_data_dict
+
+
+def calculate_correlations(x, y, weights, min_events=3):
+	"""Calculate all three correlations on the same finite, positive-weight pairs.
+
+	Undefined correlations (fewer than two pairs or constant values) are NaN.
+	min_events applies only to the approximate weighted-correlation P value.
+	"""
+	x, y, w = (np.asarray(a, dtype=float) for a in (x, y, weights))
+	valid = np.isfinite(x) & np.isfinite(y) & np.isfinite(w) & (w > 0)
+	x, y, w = x[valid], y[valid], w[valid]
+	result = dict.fromkeys(('r', 'p_value_approx', 'neff', 'pearson_r',
+		'pearson_p_value', 'spearman_rho', 'spearman_p_value'), np.nan)
+	if len(x) < 2:
+		return result
+	w = w / w.max()
+	w = w / w.sum()
+	neff = 1.0 / np.sum(w ** 2)
+	result['neff'] = neff
+	if np.ptp(x) == 0 or np.ptp(y) == 0:
+		return result
+	dx, dy = x - np.sum(w * x), y - np.sum(w * y)
+	vx, vy = np.sum(w * dx ** 2), np.sum(w * dy ** 2)
+	r = np.clip(np.sum(w * dx * dy) / np.sqrt(vx * vy), -1., 1.)
+	result['r'] = r
+	if neff >= max(3, min_events):
+		tval = r * np.sqrt((neff - 2) / max(1e-12, 1 - r ** 2))
+		result['p_value_approx'] = 2 * stats.t.sf(abs(tval), df=neff - 2)
+	result['pearson_r'], result['pearson_p_value'] = stats.pearsonr(x, y)
+	result['spearman_rho'], result['spearman_p_value'] = stats.spearmanr(x, y)
+	return result
 
 
 def save_weighted_correlation_results(wcorr_results, output_file):
@@ -150,6 +150,8 @@ def save_weighted_correlation_results(wcorr_results, output_file):
 			'r': result.get('r', np.nan),
 			'p_value_approx': result.get('p_value_approx', np.nan),
 			'neff': result.get('neff', np.nan),
+			**{key: result.get(key, np.nan) for key in (
+				'pearson_r', 'pearson_p_value', 'spearman_rho', 'spearman_p_value')},
 		})
 	pd.DataFrame(rows).to_csv(output_file, sep='\t', index=False)
 	logger.info(f"Weighted dPSI correlation results saved to {output_file}")
