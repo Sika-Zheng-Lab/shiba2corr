@@ -1,7 +1,7 @@
 FROM python:3.11-slim
 
 LABEL maintainer="Naoto Kubota" \
-      version="v1.0.0" \
+      version="v1.1.0" \
       description="shiba2corr: weighted dPSI correlation analysis for Shiba"
 
 RUN apt-get update && apt-get install -y --no-install-recommends \

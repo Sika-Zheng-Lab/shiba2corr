@@ -5,7 +5,7 @@ import logging
 import os
 import time
 
-from . import __version__, correlation, general, load, plots
+from . import __version__, correlation, general, load, plots, publication, sensitivity
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +39,18 @@ def parse_args():
 	parser.add_argument("--no-venn", action="store_true",
 						help="Skip the DSE overlap Venn diagrams")
 	parser.add_argument("--verbose", action="store_true", help="Increase verbosity")
-	return parser.parse_args()
+	parser.add_argument("--sensitivity-analysis", action="store_true",
+						help="Repeat correlations on random event subsets and export publication figures")
+	parser.add_argument("--subsample-fractions", type=float, nargs="+",
+						default=list(sensitivity.DEFAULT_FRACTIONS), help="Retention fractions in (0, 1); default: 0.25 0.5 0.75 0.9")
+	parser.add_argument("--subsample-repeats", type=int, default=200, help="Repeats per fraction (default: 200)")
+	parser.add_argument("--subsample-seed", type=int, default=0, help="Nonnegative random seed (default: 0)")
+	args = parser.parse_args()
+	try:
+		sensitivity.validate_settings(args.subsample_fractions, args.subsample_repeats, args.subsample_seed)
+	except ValueError as exc:
+		parser.error(str(exc))
+	return args
 
 
 def main():
@@ -53,6 +64,8 @@ def main():
 	logger.info(f"Running shiba2corr ({__version__})")
 	logger.debug(f"Arguments: {args}")
 
+	if args.sensitivity_analysis:
+		publication.publication_style()  # Fail early if required Arial fonts are missing.
 	os.makedirs(os.path.join(args.output, "results"), exist_ok=True)
 
 	logger.info("===== Weighted dPSI correlation =====")
@@ -67,6 +80,15 @@ def main():
 	wcorr_file = os.path.join(args.output, "results", "event_dpsi_weighted_correlation.tsv")
 	correlation.save_weighted_correlation_results(wcorr_results, wcorr_file)
 	correlation.save_scatter_plot_data(scatter_data_dict, os.path.join(args.output, "results"))
+
+	if args.sensitivity_analysis:
+		logger.info("Running random event-selection sensitivity analysis")
+		raw, summary = sensitivity.analyze_sensitivity(
+			scatter_data_dict, fractions=args.subsample_fractions,
+			repeats=args.subsample_repeats, seed=args.subsample_seed, min_events=args.min_events)
+		raw.to_csv(os.path.join(args.output, "results", "event_selection_sensitivity.tsv"), sep="\t", index=False)
+		summary.to_csv(os.path.join(args.output, "results", "event_selection_sensitivity_summary.tsv"), sep="\t", index=False)
+		publication.plot_sensitivity(raw, summary, args.output)
 
 	logger.info("Creating weighted correlation scatter plots")
 	plots.plot_weighted_correlation_scatter(
@@ -92,6 +114,7 @@ def main():
 	logger.info(f"Output directory: {args.output}")
 
 	report = general.create_simple_report(args, start_time, end_time, __version__)
+	report["parameters"] = vars(args)
 	general.write_report(report, args.output)
 
 

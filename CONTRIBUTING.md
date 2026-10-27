@@ -25,8 +25,9 @@ tests automatically.
 
 1. Bump `VERSION` on `develop` (e.g. `v1.1.0`). The `update-version.yaml`
    workflow propagates the new version into `README.md`, `pyproject.toml`,
-   `src/shiba2corr/__init__.py`, `docker/Dockerfile`, and the issue
-   templates, and commits the result back to `develop`.
+   `src/shiba2corr/__init__.py`, `docker/Dockerfile`, the issue templates,
+   and `CITATION.cff`. It commits the result back to `develop` if any of
+   those files changed.
 2. Update the release date and notes in `CHANGELOG.md`, then open a PR from
    `develop` into `main`.
 3. Merge the `develop` to `main` PR. The `release.yaml` workflow reads

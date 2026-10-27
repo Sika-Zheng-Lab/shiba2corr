@@ -173,7 +173,8 @@ def test_save_weighted_correlation_results(tmp_path):
 	out = tmp_path / "out.tsv"
 	save_weighted_correlation_results(results, str(out))
 	df = pd.read_csv(out, sep="\t")
-	assert list(df.columns) == ["event_type", "n_union", "n_used", "r", "p_value_approx", "neff"]
+	assert list(df.columns) == ["event_type", "n_union", "n_used", "r", "p_value_approx", "neff",
+		"pearson_r", "pearson_p_value", "spearman_rho", "spearman_p_value"]
 	assert df["event_type"].iloc[0] == "SE"
 
 

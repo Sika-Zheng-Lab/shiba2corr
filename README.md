@@ -71,6 +71,8 @@ $$n_{\text{eff}} = \frac{(\sum w_i)^2}{\sum w_i^2}.$$
 
 In addition to the correlation table, `shiba2corr` produces:
 
+- unweighted **Pearson and Spearman correlations** on the same usable events, by default;
+- optional **random event-selection sensitivity analysis**, with publication figures;
 - per-event-type **KDE-coloured scatter plots** of Target vs Reference dPSI;
 - **DSE overlap Venn diagrams** (Target vs Reference, split by dPSI direction)
   for each event type and a combined grid.
@@ -138,6 +140,41 @@ shiba2corr -t target/ -r reference/ -o output/ \
 shiba2corr -t target/ -r reference/ -o output/ --no-venn
 ```
 
+### Event-selection sensitivity analysis
+
+```bash
+shiba2corr -t target/ -r reference/ -o output/ --sensitivity-analysis \
+    --subsample-fractions 0.25 0.5 0.75 0.9 \
+    --subsample-repeats 200 --subsample-seed 0
+```
+
+After DSE selection (including `--ttest` and `--event-list`) and removal of
+pairs with nonfinite dPSI or unusable weights, uniformly sample events **without
+replacement** at each requested fraction. The sample size is `floor(fraction *
+n_used)`. Original event weights are retained and normalized within each subset.
+Weighted Pearson, unweighted Pearson and Spearman use the **same subset** in each
+repeat. Each event type and the pooled `all` set are sampled independently;
+the pooled sample is not stratified by event type. The 100% baseline is computed
+once, without sampling. Defaults are 200 repeats and seed 0; stable event ordering
+makes repeated runs reproducible with the same inputs and software environment.
+
+This measures sensitivity to event removal **conditional on the selected event
+pool**. It does not rerun Shiba, vary the DSE thresholds, or resample biological
+replicates. Percentile ranges describe subsampling variability, **not confidence
+intervals**. Subsets with fewer than two events or constant dPSI have undefined
+correlations (NaN). They remain in the raw table; summaries report the number of
+valid repeats and plots annotate incomplete counts. The minimum-events option
+continues to apply only to the weighted approximate P value.
+
+Each event type receives a three-panel, 180-mm-wide figure showing every defined
+subsample, the median, the 2.5–97.5 percentile range, and the full-data baseline.
+Figures use a fixed correlation axis spanning −1 to 1, restrained colors, and
+small publication-sized labels. PDF embeds TrueType text; PNG is 600 dpi.
+**Genuine Arial regular and bold must be installed** for sensitivity figures;
+missing fonts cause an explicit error rather than silent substitution.
+`--font-family` continues to control the existing scatter/Venn plots; sensitivity
+figures always use Arial. Historical scatter/Venn styling is unchanged.
+
 ## Input File Format
 
 `-t` / `-r` accept the path to a **Shiba working directory**. Within each
@@ -179,12 +216,15 @@ Given `-o output/`:
 
 | File | Description |
 |---|---|
-| `results/event_dpsi_weighted_correlation.tsv` | Per-event-type summary (`n_union`, `n_used`, `r`, `p_value_approx`, `neff`) |
+| `results/event_dpsi_weighted_correlation.tsv` | Per-event-type summary (`n_union`, `n_used`, weighted `r`, `p_value_approx`, `neff`, `pearson_r`, `pearson_p_value`, `spearman_rho`, `spearman_p_value`) |
 | `results/weighted_correlation_scatter_{TYPE}.tsv` | Per-event-type per-event scatter data (`pos_id`, dPSI values, weights) |
 | `plots/png/weighted_correlation_scatter_{TYPE}.png` | KDE-coloured scatter plot (also `.pdf` under `plots/pdf/`) |
 | `plots/png/dse_venn_{TYPE}_{up,down}.png` | DSE overlap Venn diagram per event type and direction |
 | `plots/png/dse_venn_grid_{up,down}.png` | Combined Venn diagram grid per direction |
-| `report.json` | Machine-readable run summary (version, timestamp, command line) |
+| `results/event_selection_sensitivity.tsv` | Every subset correlation, sample size, fraction, repeat and seed (with `--sensitivity-analysis`) |
+| `results/event_selection_sensitivity_summary.tsv` | Median, 2.5/97.5 percentiles and valid/attempted counts |
+| `plots/pdf/event_selection_sensitivity_{TYPE}.pdf` | Three-panel sensitivity figure (also PNG under `plots/png/`) |
+| `report.json` | Machine-readable run summary (version, timestamp, command line, resolved parameters) |
 
 `TYPE` is one of `SE`, `FIVE`, `THREE`, `MXE`, `RI`, `MSE`, `AFE`, `ALE`,
 or `all` (aggregated across event types). `--no-venn` skips all DSE overlap
@@ -206,6 +246,10 @@ Venn output.
 | `--reference-color` | Hex color for Reference DSEs in Venn diagrams |
 | `--font-family` | Font family for plot text (e.g. `Arial`) |
 | `--no-venn` | Skip the DSE overlap Venn diagrams |
+| `--sensitivity-analysis` | Enable random event subsampling and publication figures |
+| `--subsample-fractions` | Space-separated, unique retention fractions strictly between 0 and 1 (default: `0.25 0.5 0.75 0.9`) |
+| `--subsample-repeats` | Repeats per fraction (default: 200) |
+| `--subsample-seed` | Nonnegative random seed (default: 0) |
 | `--verbose` | Enable DEBUG-level logging |
 
 ## License
